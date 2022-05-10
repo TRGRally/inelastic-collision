@@ -45,6 +45,7 @@ function Pythagoras(o1, o2) {
 let cR = 0.8
 function resolveCollision(o1, o2) { 
 	if (locked == true) {
+		console.log("locked")
 		return
 	}
 	locked = true  
@@ -53,6 +54,27 @@ function resolveCollision(o1, o2) {
 	
 	var diffXVel = o1.xvel - o2.xvel
 	var diffYVel = o1.yvel - o2.yvel
+	if (o2 instanceof Cursor){
+		var theta = -Math.atan2(diffY, diffX) //angle of collision - note: "theta" here is technically neg. theta as it is the value to return from theta -> axis
+		var o1NormXVel = o1.xvel * Math.cos(theta) - o1.yvel * Math.sin(theta) // rotation matrix modeled as individual equations for simplicity
+		var o1NormYVel = o1.xvel * Math.sin(theta) + o1.yvel * Math.cos(theta) // takes 0bject 1, object 2 velocities and rotates them to the coordinate axis
+		var o2NormXVel = o2.xvel * Math.cos(theta) - o2.yvel * Math.sin(theta) // allows the collision to be considered 1 dimensionally
+		var o2NormYVel = o2.xvel * Math.sin(theta) + o2.yvel * Math.cos(theta) // reversed after collision calculation with negative theta
+		//object 1 calc.
+		var o1ResolvedXVel = o1NormXVel * (o1.m - o2.m) / (o1.m + o2.m) + o2NormXVel * 2 * o2.m / (o1.m + o2.m) //conservation of kinetic energy, momentum
+		var o1ResolvedYVel = o1NormYVel //1D ignores y vel
+		//object 2 calc.
+		//reverse rotation matrix
+		var o1FinalXVel = o1ResolvedXVel * Math.cos(-theta) - o1ResolvedYVel * Math.sin(-theta)
+		var o1FinalYVel = o1ResolvedYVel * Math.cos(-theta) + o1ResolvedXVel * Math.sin(-theta)
+		//set values
+		
+		o1.xvel = o1FinalXVel * o1.elasticity
+		o1.yvel = o1FinalYVel
+		console.log("collision cursor")	
+		return
+	}
+
 	if (diffXVel * diffX + diffYVel * diffY >= 0) {
 		//checks if 2 objects are travelling in a direction that will collide - allows enemies to spawn over each other without glitching
 		var theta = -Math.atan2(diffY, diffX) //angle of collision - note: "theta" here is technically neg. theta as it is the value to return from theta -> axis
@@ -72,19 +94,16 @@ function resolveCollision(o1, o2) {
 		var o2FinalXVel = o2ResolvedXVel * Math.cos(-theta) - o2ResolvedYVel * Math.sin(-theta)
 		var o2FinalYVel = o2ResolvedYVel * Math.cos(-theta) + o2ResolvedXVel * Math.sin(-theta)
 		//set values
-			o1.onGround = true
-			o1.xvel = o1FinalXVel * o1.elasticity
-			o1.yvel = o1FinalYVel
-			o2.xvel = o2FinalXVel * o1.elasticity
-			o2.yvel = o2FinalYVel
-			console.table(o1, o2)
 		
-		
-		
+		o1.xvel = o1FinalXVel * o1.elasticity
+		o1.yvel = o1FinalYVel
+		o2.xvel = o2FinalXVel * o1.elasticity
+		o2.yvel = o2FinalYVel
+		console.log("collision")		
 	} 
 
 }
-
+let scale = 25
 //defining classes
 class Particle { //player template
 	constructor(x, y, r, color, xvel, yvel) {
@@ -98,30 +117,22 @@ class Particle { //player template
 		this.m = this.r / 2
 		this.elasticity = 1 - ((this.r - 1) / 50)
 		this.onGround = false
+		this.stillInCursor = true
 	}
 
     physics(g, damping){
-		if (this.onGround == true) {
-			this.yvel = 0 * dt
+		if (this.y < innerHeight - this.r) {
+			this.yvel = this.yvel + ((g / 100) * dt)
 		} else {
-			if (this.y < innerHeight - this.r && this.onGround == false) {
-				this.yvel = this.yvel + ((g / 100) * dt)
-			} else {
-				this.y = innerHeight - this.r
-				if (this.yvel < 0.34) {
-					this.yvel = this.yvel / 2
-					this.onGround = true
-					
-				}
-				this.yvel = -this.yvel * this.elasticity
-				if (this.onGround == false) {
-					this.xvel = this.xvel / (1.2 * (damping / 1.4))
-				} else {
-					this.floortime = this.floortime + 0.01
-					//this.friction()
-				}
-			}  
+			this.y = innerHeight - this.r
+			if (this.yvel < 0.34) {
+				this.yvel = this.yvel / 2
+				
+			}
+			this.yvel = -this.yvel * this.elasticity
+			this.xvel = this.xvel / (1.2 * (damping / 1.4))
 		}
+	
         
         
         if (this.x >= innerWidth - this.r) {
@@ -199,10 +210,12 @@ class Cursor { //player template
         this.lastx = null
 		this.y = y
         this.lasty = null
-		this.r = r
+		this.r = 25
 		this.color = color
-        this.xvel = this.x - this.lastx
-        this.yvel = this.y - this.lasty
+		this.xvel = 0
+		this.yel = 0
+		this.m = 999999
+		this.elasticity = 1
 	}
 
 	draw() {
@@ -223,7 +236,25 @@ class Cursor { //player template
 		this.y = mouse.y
         this.lastx = this.x
 		this.x = mouse.x
+		if (this.x - this.lastx > 0){
+			this.xvel = this.x - this.lastx
+		} else if (this.x - this.lastx < 0){
+			this.xvel = this.lastx - this.x
+		} else if (this.x - this.lastx == 0){
+			this.xvel = 0
+		}
+
+		if (this.y - this.lasty > 0){
+			this.yvel = (this.y - this.lasty) / 10
+		} else if (this.y - this.lasty < 0){
+			this.yvel = (this.lasty - this.y) / 10
+		} else if (this.y - this.lasty == 0) {
+			this.yvel = 0
+		}
+		
+		this.yvel = (this.y - this.lasty)
         this.r = scale
+		
 	}
 }
 
@@ -273,17 +304,27 @@ function gameplayLoop() {
 		particle.update()
 		particles.forEach((particle2) => {
 			if (particle != particle2 && Pythagoras(particle, particle2) <= particle.r + particle2.r) {
-				if (particle.yvel > -0.5 && particle.yvel < 0.5 && particle2.yvel > -0.5 && particle2.yvel < 0.5){
-					resolveCollision(particle, particle2)
-					locked = false
-				}
+				
+				resolveCollision(particle, particle2)
+				locked = false
+			
 
 			}
 		})
+
+		if (Pythagoras(particle, cursor) <= particle.r + cursor.r){
+			if (particle.stillInCursor == false) {
+				resolveCollision(particle, cursor)
+				locked = false
+			}
+			
+		} else {
+			particle.stillInCursor = false
+		}
     })
     cursor.update()
-    if (framecount % (Math.round(10 * dt)) == 0) {
-        fpscounter.innerHTML = fps
+    if (framecount % (Math.round(5)) == 0) {
+        fpscounter.innerHTML = `${fps}, ${cursor.xvel}, ${cursor.yvel}`
     }
 
 	cR = document.getElementById("slider").value / 100
@@ -292,7 +333,7 @@ function gameplayLoop() {
 let particles = []
 let p1
 let p2
-let scale = 25
+
 addEventListener("mousedown", () => {
     p1 = {x: mouse.x, y: mouse.y}
     cursor.color = "white"
