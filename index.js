@@ -43,7 +43,7 @@ function Pythagoras(o1, o2) {
 }
 
 let cR = 0.8
-function resolveCollision(o1, o2) { 
+function resolveCollision(o1, o2, dist) { 
 	if (locked == true) {
 		console.log("locked")
 		return
@@ -56,6 +56,15 @@ function resolveCollision(o1, o2) {
 	var diffYVel = o1.yvel - o2.yvel
 	if (o2 instanceof Cursor){
 		var theta = -Math.atan2(diffY, diffX) //angle of collision - note: "theta" here is technically neg. theta as it is the value to return from theta -> axis
+		var gradientOfCollision = diffY / diffX
+		if (dist < (o1.r + o2.r) - 1) {
+			o1.x = o1.x + (diffX / (o1.r + o2.r))
+			o1.y = o1.y + (diffY / (o1.r + o2.r))
+			console.log(diffX, diffY)
+			console.log(diffX / (o1.r + o2.r))
+
+			return
+		}
 		var o1NormXVel = o1.xvel * Math.cos(theta) - o1.yvel * Math.sin(theta) // rotation matrix modeled as individual equations for simplicity
 		var o1NormYVel = o1.xvel * Math.sin(theta) + o1.yvel * Math.cos(theta) // takes 0bject 1, object 2 velocities and rotates them to the coordinate axis
 		var o2NormXVel = o2.xvel * Math.cos(theta) - o2.yvel * Math.sin(theta) // allows the collision to be considered 1 dimensionally
@@ -252,7 +261,8 @@ class Cursor { //player template
 			this.yvel = 0
 		}
 		
-		this.yvel = (this.y - this.lasty)
+		this.yvel = ((this.y - this.lasty) / dt ) / 10
+		this.xvel = ((this.x - this.lastx) / dt ) / 10
         this.r = scale
 		
 	}
@@ -298,7 +308,8 @@ function gameplayLoop() {
     dt = (thisLoop - lastLoop)  //set dt
     lastLoop = thisLoop;
 	DrawBackground()
-	requestAnimationFrame(gameplayLoop) //queue next frame
+	requestAnimationFrame(gameplayLoop)
+	 //queue next frame
     
     particles.forEach((particle) => {
 		particle.update()
@@ -314,7 +325,7 @@ function gameplayLoop() {
 
 		if (Pythagoras(particle, cursor) <= particle.r + cursor.r){
 			if (particle.stillInCursor == false) {
-				resolveCollision(particle, cursor)
+				resolveCollision(particle, cursor, (Pythagoras(particle, cursor)))
 				locked = false
 			}
 			
@@ -324,7 +335,7 @@ function gameplayLoop() {
     })
     cursor.update()
     if (framecount % (Math.round(5)) == 0) {
-        fpscounter.innerHTML = `${fps}, ${cursor.xvel}, ${cursor.yvel}`
+        fpscounter.innerHTML = `${fps}, ${cursor.xvel.toFixed(3)}, ${cursor.yvel.toFixed(3)}`
     }
 
 	cR = document.getElementById("slider").value / 100
@@ -354,6 +365,13 @@ addEventListener("wheel", (event) => {
     if (scale > 50) {
         scale = 50
     }
+})
+
+addEventListener("keydown", (e) => {
+	if (e.keyCode == 32) {
+		requestAnimationFrame(gameplayLoop)
+		console.log("new frame")
+	}
 })
 //startup
 init()
